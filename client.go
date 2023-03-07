@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"time"
 )
 
 //goland:noinspection SpellCheckingInspection
@@ -101,7 +102,7 @@ type client struct {
 }
 
 func newClient(host string, port int) (*client, error) {
-	con, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
+	con, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 10*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -111,35 +112,38 @@ func newClient(host string, port int) (*client, error) {
 	}, nil
 }
 
-func (c *client) sendAndReceive(p Packet) (string, error) {
+func (c *client) sendAndReceive(p Packet) (Packet, error) {
 	bytes := p.serializePacket()
 	// Check format
 	if bytes[len(bytes)-2] != 0 {
-		return "", errors.New("request body not a null terminated string")
+		return Packet{}, errors.New("request body not a null terminated string")
 	} else if bytes[len(bytes)-1] != 0 {
-		return "", errors.New("request not null terminated")
+		return Packet{}, errors.New("request not null terminated")
 	}
 	// Send packet
 	{
 		num, err := (*c.con).Write(bytes)
 		if err != nil {
-			return "", err
+			return Packet{}, err
 		}
 		if num != len(bytes) {
-			return "", errors.New("failed to send full packet")
+			return Packet{}, errors.New("failed to send full packet")
 		}
 	}
 	// Read response
-	var respString string
+	var response Packet
 	{
 		buf := make([]byte, 4096)
 		num, err := (*c.con).Read(buf)
 		if err != nil {
-			return "", err
+			return Packet{}, err
 		}
-		respString = string(buf[:num])
+		response, err = deserializePacket(buf[:num])
+		if err != nil {
+			return Packet{}, err
+		}
 	}
-	return respString, nil
+	return response, nil
 }
 
 func (c *client) close() {
