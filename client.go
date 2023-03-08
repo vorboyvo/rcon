@@ -66,6 +66,7 @@ func deserializePacket(bytes []byte) (Packet, error) {
 		size64, _ := binary.Uvarint(bytes[0:4])
 		fmt.Println(size64)
 		size = uint(size64)
+		fmt.Println(len(bytes) - 4)
 		if size != uint(len(bytes)-4) {
 			return Packet{}, fmt.Errorf("size in data does not match length of data; size is %v, length is %v", size, len(bytes)-4)
 		}
@@ -90,6 +91,7 @@ func deserializePacket(bytes []byte) (Packet, error) {
 	}
 	// Read body
 	var packetBody = string(bytes[12 : len(bytes)-2])
+	fmt.Printf("Packet type: %v, Packet ID: %v, Packet Body: %v\n", packetType, packetId, packetBody)
 	return Packet{packetId: packetId, packetType: packetType, packetBody: packetBody}, nil
 }
 
