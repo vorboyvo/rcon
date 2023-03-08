@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"time"
@@ -39,9 +41,9 @@ func (p Packet) serializePacket() []byte {
 	size := p.size()                        // Avoid repeat calls
 	// Construct data slice
 	bytes := make([]byte, size+4)
-	binary.PutVarint(bytes[0:4], int64(size))
-	binary.PutVarint(bytes[4:8], int64(p.packetId))
-	binary.PutVarint(bytes[8:12], int64(p.packetType))
+	binary.PutUvarint(bytes[0:4], uint64(size))
+	binary.PutUvarint(bytes[4:8], uint64(p.packetId))
+	binary.PutUvarint(bytes[8:12], uint64(p.packetType))
 	copy(bytes[12:], body)
 	return bytes
 }
@@ -59,21 +61,19 @@ func deserializePacket(bytes []byte) (Packet, error) {
 		return Packet{}, errors.New("invalid data - body not zero-terminated")
 	}
 	// Read size, handle size mismatch
-	var size int
+	var size uint
 	{
-		size64, num := binary.Varint(bytes[0:4])
-		if num > 4 {
-			return Packet{}, errors.New("failed to read size while deserializing data, size received is " + strconv.Itoa(num))
-		}
-		size = int(size64)
-		if size != len(bytes)-4 {
-			return Packet{}, errors.New("size in data does not match length of data")
+		size64, _ := binary.Uvarint(bytes[0:4])
+		fmt.Println(size64)
+		size = uint(size64)
+		if size != uint(len(bytes)-4) {
+			return Packet{}, fmt.Errorf("size in data does not match length of data; size is %v, length is %v", size, len(bytes)-4)
 		}
 	}
 	// Read ID
 	var packetId int
 	{
-		packetId64, num := binary.Varint(bytes[4:8])
+		packetId64, num := binary.Uvarint(bytes[4:8])
 		if num > 4 {
 			return Packet{}, errors.New("failed to read id while deserializing data")
 		}
@@ -82,7 +82,7 @@ func deserializePacket(bytes []byte) (Packet, error) {
 	// Read type
 	var packetType int
 	{
-		packetType64, num := binary.Varint(bytes[8:12])
+		packetType64, num := binary.Uvarint(bytes[8:12])
 		if num > 4 {
 			return Packet{}, errors.New("failed to read type while deserializing data")
 		}
@@ -104,9 +104,9 @@ type client struct {
 func newClient(host string, port int) (*client, error) {
 	con, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 10*time.Second)
 	if err != nil {
-		return nil, err
+		log.Println("Failed to make connection")
+		log.Fatalln(err)
 	}
-
 	return &client{
 		&con,
 	}, nil
@@ -138,6 +138,7 @@ func (c *client) sendAndReceive(p Packet) (Packet, error) {
 		if err != nil {
 			return Packet{}, err
 		}
+		fmt.Println(bytes)
 		response, err = deserializePacket(buf[:num])
 		if err != nil {
 			return Packet{}, err
