@@ -134,13 +134,13 @@ func (c *client) sendAndReceive(p Packet) (Packet, error) {
 	}
 	// Read response
 	var response Packet
-	{
+	for response.packetType == 0 {
 		buf := make([]byte, 4096)
 		num, err := (*c.con).Read(buf)
 		if err != nil {
 			return Packet{}, err
 		}
-		fmt.Println(bytes)
+		fmt.Println(buf[:num])
 		response, err = deserializePacket(buf[:num])
 		if err != nil {
 			return Packet{}, err
