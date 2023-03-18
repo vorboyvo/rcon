@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -50,7 +51,7 @@ func (p Packet) serializePacket() []byte {
 
 func deserializePacket(bytes []byte) (Packet, error) {
 	// Handle data too short
-	if len(bytes) < 14 {
+	if len(bytes) < 10 {
 		return Packet{}, errors.New("invalid data - too short")
 	}
 	// Handle data or body not zero terminated
@@ -60,21 +61,10 @@ func deserializePacket(bytes []byte) (Packet, error) {
 	if bytes[len(bytes)-2] != 0 {
 		return Packet{}, errors.New("invalid data - body not zero-terminated")
 	}
-	// Read size, handle size mismatch
-	var size uint
-	{
-		size64, _ := binary.Uvarint(bytes[0:4])
-		fmt.Println(size64)
-		size = uint(size64)
-		fmt.Println(len(bytes) - 4)
-		if size != uint(len(bytes)-4) {
-			return Packet{}, fmt.Errorf("size in data does not match length of data; size is %v, length is %v", size, len(bytes)-4)
-		}
-	}
 	// Read ID
 	var packetId int
 	{
-		packetId64, num := binary.Uvarint(bytes[4:8])
+		packetId64, num := binary.Uvarint(bytes[0:4])
 		if num > 4 {
 			return Packet{}, errors.New("failed to read id while deserializing data")
 		}
@@ -83,14 +73,13 @@ func deserializePacket(bytes []byte) (Packet, error) {
 	// Read type
 	var packetType int
 	{
-		packetType64, num := binary.Uvarint(bytes[8:12])
+		packetType64, num := binary.Uvarint(bytes[4:8])
 		if num > 4 {
 			return Packet{}, errors.New("failed to read type while deserializing data")
 		}
 		packetType = int(packetType64)
 	}
-	// Read body
-	var packetBody = string(bytes[12 : len(bytes)-2])
+	var packetBody = string(bytes[8 : len(bytes)-2]) // -2 for null terminators on body and whole packet
 	fmt.Printf("Packet type: %v, Packet ID: %v, Packet Body: %v\n", packetType, packetId, packetBody)
 	return Packet{packetId: packetId, packetType: packetType, packetBody: packetBody}, nil
 }
@@ -135,15 +124,40 @@ func (c *client) sendAndReceive(p Packet) (Packet, error) {
 	// Read response
 	var response Packet
 	for response.packetType == 0 {
-		buf := make([]byte, 4096)
-		num, err := (*c.con).Read(buf)
-		if err != nil {
-			return Packet{}, err
+		// read size
+		var size int
+		{
+			buf := make([]byte, 4)
+			num, err := io.ReadFull(*c.con, buf)
+			if err != nil {
+				return Packet{}, err
+			} else if num < 4 {
+				return Packet{}, errors.New("failed to read size of packet; could not read first word")
+			}
+			fmt.Println(buf[:num])
+			size64, num := binary.Uvarint(buf)
+			if num == 0 {
+				return Packet{}, errors.New("failed to read size of packet; buffer too small")
+			} else if num < 0 {
+				return Packet{}, errors.New("failed to read size of packet; buffer too small")
+			}
+			size = int(size64)
 		}
-		fmt.Println(buf[:num])
-		response, err = deserializePacket(buf[:num])
-		if err != nil {
-			return Packet{}, err
+		// read size number of bytes
+		{
+			var err error
+			buf := make([]byte, size)
+			num, err := io.ReadFull(*c.con, buf)
+			if err != nil {
+				return Packet{}, err
+			} else if num < size {
+				return Packet{}, errors.New("failed to read packet up to full size")
+			}
+			response, err = deserializePacket(buf)
+			if err != nil {
+				return Packet{}, err
+			}
+			fmt.Println(response)
 		}
 	}
 	return response, nil
