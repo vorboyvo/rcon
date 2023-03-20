@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
+	"os"
 	"strconv"
 	"time"
 )
@@ -27,7 +29,7 @@ type packet struct {
 	packetBody string
 }
 
-// Calculate a size of a packet based on how long it should be
+// size calculates the packet's size based on how long it should be given its fields; for specification purposes
 func (p packet) size() int {
 	var packetSize = 0                  // Do not count the size field
 	packetSize += 4                     // 4 bytes for ID field
@@ -36,7 +38,7 @@ func (p packet) size() int {
 	return packetSize + 1               // 1 byte for null terminator
 }
 
-// Convert a packet struct into a byte slice containing the raw packet to be sent to the server
+// serializePacket converts a packet struct into a byte slice containing the raw packet to be sent to the server
 func (p packet) serializePacket() []byte {
 	body := append([]byte(p.packetBody), 0) // Zero-terminate body string
 	size := p.size()                        // Avoid repeat calls
@@ -46,10 +48,14 @@ func (p packet) serializePacket() []byte {
 	binary.LittleEndian.PutUint32(bytes[4:8], uint32(p.packetId))
 	binary.LittleEndian.PutUint32(bytes[8:12], uint32(p.packetType))
 	copy(bytes[12:], body)
+	if debug {
+		_, _ = fmt.Fprintf(os.Stderr, "serialize packet with type %v id %v and body '%v'\n",
+			p.packetType, p.packetId, p.packetBody)
+	}
 	return bytes
 }
 
-// Convert a raw packet as a byte slice to a packet struct
+// deserializePacket converts a raw packet as a byte slice to a packet struct
 func deserializePacket(bytes []byte) (packet, error) {
 	// Handle data too short
 	if len(bytes) < 10 {
@@ -76,6 +82,10 @@ func deserializePacket(bytes []byte) (packet, error) {
 	}
 	var packetBody = string(bytes[8 : len(bytes)-2]) // -2 for null terminators on body and whole packet
 	//fmt.Printf("Packet type: %v, Packet ID: %v, Packet Body: '%v'\n", packetType, packetId, packetBody)
+	if debug {
+		_, _ = fmt.Fprintf(os.Stderr, "deserialize packet with type %v id %v and body '%v'\n",
+			packetType, packetId, packetBody)
+	}
 	return packet{packetId: packetId, packetType: packetType, packetBody: packetBody}, nil
 }
 
@@ -84,21 +94,27 @@ type client struct {
 	con *net.Conn
 }
 
-// Creates a new client from host and port;
+// newClient creates a new client from host and port; it returns error on connection failure. Callers should
+// defer execution of close() on the returned client.
 func newClient(host string, port int) (*client, error) {
 	con, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 4*time.Second)
+	if debug {
+		_, _ = fmt.Fprintln(os.Stderr, "open connection with error", err)
+	}
 	if err != nil {
-		dnsErr, ok := err.(*net.DNSError)
+		netErr, ok := err.(net.Error)
 		if !ok {
 			return nil, err
 		}
-		return nil, ConnectionFailure{*dnsErr}
+		return nil, ConnectionFailure{netErr}
 	}
 	return &client{
 		&con,
 	}, nil
 }
 
+// sendPacket takes an RCON packet and sends it to the connection; it does not listen for a response. It returns
+// a non-nil error if the packet is malformed or if there is an error on send failure.
 func (c *client) sendPacket(p packet) error {
 	bytes := p.serializePacket()
 	// Check format
@@ -109,6 +125,12 @@ func (c *client) sendPacket(p packet) error {
 	}
 	// Send packet
 	{
+		if debug {
+			_, err := fmt.Fprintln(os.Stderr, "send", bytes)
+			if err != nil {
+				return err
+			}
+		}
 		num, err := (*c.con).Write(bytes)
 		if err != nil {
 			return err
@@ -120,6 +142,8 @@ func (c *client) sendPacket(p packet) error {
 	return nil
 }
 
+// receivePacket receives an RCON packet from the connection, blocking until one is available. It returns a
+// non-nil error on read failure.
 func (c *client) receivePacket() (packet, error) {
 	// Read response
 	var response packet
@@ -128,6 +152,9 @@ func (c *client) receivePacket() (packet, error) {
 	{
 		buf := make([]byte, 4)
 		num, err := io.ReadFull(*c.con, buf)
+		if debug {
+			_, _ = fmt.Fprintln(os.Stderr, "receive raw size", buf, "with error", err)
+		}
 		if err != nil {
 			return packet{}, err
 		} else if num < 4 {
@@ -146,6 +173,9 @@ func (c *client) receivePacket() (packet, error) {
 		var err error
 		buf := make([]byte, size)
 		num, err := io.ReadFull(*c.con, buf)
+		if debug {
+			_, _ = fmt.Fprintln(os.Stderr, "receive raw payload", buf, "with error", err)
+		}
 		if err != nil {
 			return packet{}, err
 		} else if num < size {
@@ -159,7 +189,11 @@ func (c *client) receivePacket() (packet, error) {
 	return response, nil
 }
 
+// close closes the connection; it is intended to be deferred on newClient call.
 func (c *client) close() {
+	if debug {
+		_, _ = fmt.Fprintln(os.Stderr, "close connection")
+	}
 	if c.con == nil {
 		return
 	}
@@ -170,23 +204,15 @@ func (c *client) close() {
 }
 
 // ConnectionFailure is an error type occurring whenever connection fails for whatever reason; it provides clients
-// a way to check for
+// a way to check and handle this behaviour.
 type ConnectionFailure struct {
-	err net.DNSError
+	err net.Error
 }
 
 func (e ConnectionFailure) Error() string {
 	return "Failed to make connection: " + e.err.Error()
 }
 
-func (e ConnectionFailure) Temporary() bool {
-	return e.err.Temporary()
-}
-
 func (e ConnectionFailure) Timeout() bool {
 	return e.err.Timeout()
-}
-
-func (e ConnectionFailure) NotFound() bool {
-	return e.err.IsNotFound
 }

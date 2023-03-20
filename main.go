@@ -2,11 +2,15 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
+	flag "github.com/spf13/pflag"
+	"io"
+	"net"
 	"os"
 	"strings"
 )
+
+var debug bool
 
 func main() {
 	os.Exit(mainWithCode())
@@ -14,15 +18,35 @@ func main() {
 
 func mainWithCode() int {
 	// Interpret flags
-	flagHost := flag.String("H", "", "Hostname or IP")
-	flagPort := flag.Int("p", 27015, "Port")
-	flagPassword := flag.String("P", "", "RCON Password")
+	flagHost := flag.StringP("host", "H", "", "Hostname or IP")
+	flagPort := flag.IntP("port", "p", 27015, "Port")
+	flagPassword := flag.StringP("password", "P", "", "RCON Password")
+	flagDebug := flag.BoolP("debug", "d", false, "Additional output for debug purposes")
 	flag.Parse()
 	args := flag.Args()
+	debug = *flagDebug
 
-	// Check for flag validity
-	// Host
+	// Check for legal arguments
+	{
+		var illegalArguments bool
+		if *flagHost == "" {
+			_, _ = fmt.Fprintln(os.Stderr, "Hostname not provided")
+			illegalArguments = true
+		}
+		if *flagPort < 1 || *flagPort > 65535 {
+			_, _ = fmt.Fprintln(os.Stderr, "Invalid port provided")
+			illegalArguments = true
+		}
+		if *flagPassword == "" {
+			_, _ = fmt.Fprintln(os.Stderr, "Password not provided")
+			illegalArguments = true
+		}
+		if illegalArguments {
+			return -1
+		}
+	}
 
+	// Create connection, handle failure, defer closure
 	conn, err := NewRCONConnection(*flagHost, *flagPort, *flagPassword)
 	if err != nil {
 		if connFailure, ok := err.(ConnectionFailure); ok {
@@ -61,7 +85,17 @@ func mainWithCode() int {
 		scan = scanner.Scan()
 		result, err := conn.SendCommand(scanner.Text())
 		if err != nil {
-			panic(err)
+			if err == io.EOF {
+				fmt.Print(result)
+				_, _ = fmt.Fprintln(os.Stderr, "Connection closed by remote host")
+				return 4
+			} else if opErr, ok := err.(*net.OpError); ok {
+				fmt.Print(result)
+				_, _ = fmt.Fprintln(os.Stderr, opErr)
+				return 4
+			} else {
+				panic(err)
+			}
 		}
 		fmt.Print(result)
 	}
