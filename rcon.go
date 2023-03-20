@@ -30,7 +30,7 @@ func NewRCONConnection(host string, port int, password string) *RCONConnection {
 	}
 
 	// Authenticate RCON connection
-	err = client.sendPacket(Packet{packetId: 0, packetType: serverdataAuth, packetBody: password})
+	err = client.sendPacket(packet{packetId: 0, packetType: serverdataAuth, packetBody: password})
 	if err != nil {
 		panic(err)
 	}
@@ -40,7 +40,7 @@ func NewRCONConnection(host string, port int, password string) *RCONConnection {
 		if err != nil {
 			panic(err)
 		}
-		if (response != Packet{0, 0, ""}) {
+		if (response != packet{0, 0, ""}) {
 			panic(errors.New("received unexpected packet"))
 		}
 	}
@@ -66,7 +66,7 @@ func NewRCONConnection(host string, port int, password string) *RCONConnection {
 	return &RCONConnection{client: client}
 }
 
-func (conn *RCONConnection) sendCommand(cmd string) string {
+func (conn *RCONConnection) SendCommand(cmd string) string {
 	// This method implements the trick, discovered by Koraktor and documented in the following link, to guarantee that
 	// all meaningful responses have been received:
 	// https://developer.valvesoftware.com/wiki/Source_RCON_Protocol#Multiple-packet_Responses
@@ -74,7 +74,7 @@ func (conn *RCONConnection) sendCommand(cmd string) string {
 	// Send request packet
 	var requestId = conn.counter()
 	{
-		packet := Packet{
+		packet := packet{
 			packetId:   requestId,
 			packetType: serverdataExeccommand,
 			packetBody: cmd,
@@ -89,7 +89,7 @@ func (conn *RCONConnection) sendCommand(cmd string) string {
 	// This packet will receive TWO responses: one identical (empty body), one more RESPONSE_VALUE with body 0x01 00
 	var pingId = conn.counter()
 	{
-		packet := Packet{
+		packet := packet{
 			packetId:   pingId,
 			packetType: serverdataResponseValue,
 			packetBody: "",
@@ -103,7 +103,7 @@ func (conn *RCONConnection) sendCommand(cmd string) string {
 	// Receive packet
 	var respBody string = ""
 	{
-		var resp Packet
+		var resp packet
 		{
 			var err error
 			resp, err = conn.client.receivePacket()
@@ -127,14 +127,14 @@ func (conn *RCONConnection) sendCommand(cmd string) string {
 	}
 	// Receive ping back, then response
 	{
-		var resp Packet
+		var resp packet
 		var err error
 		// Receive ping and check for expectation
 		resp, err = conn.client.receivePacket()
 		if err != nil {
 			panic(err)
 		}
-		if (resp != Packet{pingId, serverdataResponseValue, "\x00\x01\x00\x00"}) {
+		if (resp != packet{pingId, serverdataResponseValue, "\x00\x01\x00\x00"}) {
 			msg := fmt.Sprintf("received unexpected response (ping); expected %v %v %v, got %v %v %v",
 				pingId, serverdataResponseValue, "", resp.packetId, resp.packetType, resp.packetBody)
 			panic(errors.New(msg))
@@ -148,6 +148,6 @@ func (conn *RCONConnection) counter() int {
 	return conn.idCounter
 }
 
-func (conn *RCONConnection) close() {
+func (conn *RCONConnection) Close() {
 	conn.client.close()
 }

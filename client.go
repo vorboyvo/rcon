@@ -24,13 +24,13 @@ const (
  * As defined here: https://developer.valvesoftware.com/wiki/Source_RCON_Protocol
  */
 
-type Packet struct {
+type packet struct {
 	packetId   int
 	packetType int
 	packetBody string
 }
 
-func (p Packet) size() int {
+func (p packet) size() int {
 	var packetSize = 0                  // Do not count the size field
 	packetSize += 4                     // 4 bytes for ID field
 	packetSize += 4                     // 4 bytes for Type field
@@ -38,7 +38,7 @@ func (p Packet) size() int {
 	return packetSize + 1               // 1 byte for null terminator
 }
 
-func (p Packet) serializePacket() []byte {
+func (p packet) serializePacket() []byte {
 	body := append([]byte(p.packetBody), 0) // Zero-terminate body string
 	size := p.size()                        // Avoid repeat calls
 	// Construct data slice
@@ -50,17 +50,17 @@ func (p Packet) serializePacket() []byte {
 	return bytes
 }
 
-func deserializePacket(bytes []byte) (Packet, error) {
+func deserializePacket(bytes []byte) (packet, error) {
 	// Handle data too short
 	if len(bytes) < 10 {
-		return Packet{}, errors.New("invalid data - too short")
+		return packet{}, errors.New("invalid data - too short")
 	}
 	// Handle data or body not zero terminated
 	if bytes[len(bytes)-1] != 0 {
-		return Packet{}, errors.New("invalid data - not zero-terminated")
+		return packet{}, errors.New("invalid data - not zero-terminated")
 	}
 	if bytes[len(bytes)-2] != 0 {
-		return Packet{}, errors.New("invalid data - body not zero-terminated")
+		return packet{}, errors.New("invalid data - body not zero-terminated")
 	}
 	// Read ID
 	var packetId int
@@ -76,7 +76,7 @@ func deserializePacket(bytes []byte) (Packet, error) {
 	}
 	var packetBody = string(bytes[8 : len(bytes)-2]) // -2 for null terminators on body and whole packet
 	//fmt.Printf("Packet type: %v, Packet ID: %v, Packet Body: '%v'\n", packetType, packetId, packetBody)
-	return Packet{packetId: packetId, packetType: packetType, packetBody: packetBody}, nil
+	return packet{packetId: packetId, packetType: packetType, packetBody: packetBody}, nil
 }
 
 /**
@@ -98,7 +98,7 @@ func newClient(host string, port int) (*client, error) {
 	}, nil
 }
 
-func (c *client) sendPacket(p Packet) error {
+func (c *client) sendPacket(p packet) error {
 	bytes := p.serializePacket()
 	// Check format
 	if bytes[len(bytes)-2] != 0 {
@@ -119,24 +119,24 @@ func (c *client) sendPacket(p Packet) error {
 	return nil
 }
 
-func (c *client) receivePacket() (Packet, error) {
+func (c *client) receivePacket() (packet, error) {
 	// Read response
-	var response Packet
+	var response packet
 	// read size
 	var size int
 	{
 		buf := make([]byte, 4)
 		num, err := io.ReadFull(*c.con, buf)
 		if err != nil {
-			return Packet{}, err
+			return packet{}, err
 		} else if num < 4 {
-			return Packet{}, errors.New("failed to read size of packet; could not read first word")
+			return packet{}, errors.New("failed to read size of packet; could not read first word")
 		}
 		size32 := binary.LittleEndian.Uint32(buf)
 		if num == 0 {
-			return Packet{}, errors.New("failed to read size of packet; buffer too small")
+			return packet{}, errors.New("failed to read size of packet; buffer too small")
 		} else if num < 0 {
-			return Packet{}, errors.New("failed to read size of packet; buffer too small")
+			return packet{}, errors.New("failed to read size of packet; buffer too small")
 		}
 		size = int(size32)
 	}
@@ -146,13 +146,13 @@ func (c *client) receivePacket() (Packet, error) {
 		buf := make([]byte, size)
 		num, err := io.ReadFull(*c.con, buf)
 		if err != nil {
-			return Packet{}, err
+			return packet{}, err
 		} else if num < size {
-			return Packet{}, errors.New("failed to read packet up to full size")
+			return packet{}, errors.New("failed to read packet up to full size")
 		}
 		response, err = deserializePacket(buf)
 		if err != nil {
-			return Packet{}, err
+			return packet{}, err
 		}
 	}
 	return response, nil

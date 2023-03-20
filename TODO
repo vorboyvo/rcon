@@ -1,0 +1,4 @@
+Add config support
+Add debug output support
+Handle empty host/port/password packets
+Add help/usage reference
