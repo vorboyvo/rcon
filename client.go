@@ -3,10 +3,8 @@ package main
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"net"
-	"os"
 	"strconv"
 	"time"
 )
@@ -19,17 +17,17 @@ const (
 	serverdataResponseValue = 0
 )
 
-/**
- * RCON TCP Packet
- * As defined here: https://developer.valvesoftware.com/wiki/Source_RCON_Protocol
- */
-
+// RCON TCP Packet as defined here: https://developer.valvesoftware.com/wiki/Source_RCON_Protocol
 type packet struct {
-	packetId   int
+	// ID for the packet; will be reflected in the server's response(s)
+	packetId int
+	// The packet type; serverdataAuth, serverdataAuthResponse, serverdataExeccommand, or serverdataResponseValue
 	packetType int
+	// String body for the packet; does not need to be null terminated, the methods will do this for you
 	packetBody string
 }
 
+// Calculate a size of a packet based on how long it should be
 func (p packet) size() int {
 	var packetSize = 0                  // Do not count the size field
 	packetSize += 4                     // 4 bytes for ID field
@@ -38,6 +36,7 @@ func (p packet) size() int {
 	return packetSize + 1               // 1 byte for null terminator
 }
 
+// Convert a packet struct into a byte slice containing the raw packet to be sent to the server
 func (p packet) serializePacket() []byte {
 	body := append([]byte(p.packetBody), 0) // Zero-terminate body string
 	size := p.size()                        // Avoid repeat calls
@@ -50,6 +49,7 @@ func (p packet) serializePacket() []byte {
 	return bytes
 }
 
+// Convert a raw packet as a byte slice to a packet struct
 func deserializePacket(bytes []byte) (packet, error) {
 	// Handle data too short
 	if len(bytes) < 10 {
@@ -79,19 +79,20 @@ func deserializePacket(bytes []byte) (packet, error) {
 	return packet{packetId: packetId, packetType: packetType, packetBody: packetBody}, nil
 }
 
-/**
- * TCP client
- */
-
+// TCP client that provides methods that implement RCON protocol
 type client struct {
 	con *net.Conn
 }
 
+// Creates a new client from host and port;
 func newClient(host string, port int) (*client, error) {
 	con, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 4*time.Second)
 	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "Failed to make connection:", err)
-		os.Exit(3)
+		dnsErr, ok := err.(*net.DNSError)
+		if !ok {
+			return nil, err
+		}
+		return nil, ConnectionFailure{*dnsErr}
 	}
 	return &client{
 		&con,
@@ -159,8 +160,33 @@ func (c *client) receivePacket() (packet, error) {
 }
 
 func (c *client) close() {
+	if c.con == nil {
+		return
+	}
 	err := (*c.con).Close()
 	if err != nil {
 		return
 	}
+}
+
+// ConnectionFailure is an error type occurring whenever connection fails for whatever reason; it provides clients
+// a way to check for
+type ConnectionFailure struct {
+	err net.DNSError
+}
+
+func (e ConnectionFailure) Error() string {
+	return "Failed to make connection: " + e.err.Error()
+}
+
+func (e ConnectionFailure) Temporary() bool {
+	return e.err.Temporary()
+}
+
+func (e ConnectionFailure) Timeout() bool {
+	return e.err.Timeout()
+}
+
+func (e ConnectionFailure) NotFound() bool {
+	return e.err.IsNotFound
 }

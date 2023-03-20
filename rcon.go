@@ -3,70 +3,73 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 )
 
 /**
  * RCON Connection
  */
 
+// An RCONConnection provides an interface with which you can connect to a remote server using the Source RCON protocol
+// documented in the following link. It should not be initialized directly; behaviour is undefined if it is. Its
+// methods use the protocol to authenticate and connect with servers.
 type RCONConnection struct {
 	idCounter int
 	client    *client
 }
 
-func NewRCONConnection(host string, port int, password string) *RCONConnection {
+// NewRCONConnection authenticates with the provided server given details, and returns a pointer to an RCONConnection
+// for successful connection. Returns error on
+func NewRCONConnection(host string, port int, password string) (*RCONConnection, error) {
 	// Checks for argument legality
 	if host == "" {
-		panic("cannot have empty host!")
+		return nil, errors.New("cannot have empty hostname")
 	}
 	if port < 1 || port > 65535 {
-		panic("cannot have invalid port!")
+		return nil, errors.New("cannot have invalid port; must be between 1 and 65535, inclusive")
 	}
 
 	client, err := newClient(host, port)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	// Authenticate RCON connection
 	err = client.sendPacket(packet{packetId: 0, packetType: serverdataAuth, packetBody: password})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	// Receive empty SERVERDATA_RESPONSE_VALUE
 	{
 		response, err := client.receivePacket()
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		if (response != packet{0, 0, ""}) {
-			panic(errors.New("received unexpected packet"))
+			msg := fmt.Sprintf("received unexpected packet (auth ping); expected %v %v %v, got %v %v %v",
+				0, serverdataResponseValue, "", response.packetId, response.packetType, response.packetBody)
+			return nil, errors.New(msg)
 		}
 	}
 	// Receive authentication response SERVERDATA_AUTH_RESPONSE
 	{
 		response, err := client.receivePacket()
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		if response.packetType != serverdataAuthResponse {
-			panic(errors.New("received unexpected packet"))
+			msg := fmt.Sprintf("received unexpected packet (auth response); expected type %v, received %v",
+				serverdataAuthResponse, response.packetType)
+			return nil, errors.New(msg)
 		}
 		if response.packetId != 0 {
-			_, err := fmt.Fprintln(os.Stderr, "Failed to make connection: authentication failure")
-			if err != nil {
-				return nil
-			}
-			client.close()
-			os.Exit(2)
+			return nil, new(AuthenticationFailure)
 		}
 	}
 
-	return &RCONConnection{client: client}
+	return &RCONConnection{client: client}, nil
 }
 
-func (conn *RCONConnection) SendCommand(cmd string) string {
+func (conn *RCONConnection) SendCommand(cmd string) (string, error) {
 	// This method implements the trick, discovered by Koraktor and documented in the following link, to guarantee that
 	// all meaningful responses have been received:
 	// https://developer.valvesoftware.com/wiki/Source_RCON_Protocol#Multiple-packet_Responses
@@ -81,7 +84,7 @@ func (conn *RCONConnection) SendCommand(cmd string) string {
 		}
 		err := conn.client.sendPacket(packet)
 		if err != nil {
-			panic(err)
+			return "", err
 		}
 	}
 
@@ -96,19 +99,19 @@ func (conn *RCONConnection) SendCommand(cmd string) string {
 		}
 		err := conn.client.sendPacket(packet)
 		if err != nil {
-			panic(err)
+			return "", err
 		}
 	}
 
 	// Receive packet
-	var respBody string = ""
+	var respBody = ""
 	{
 		var resp packet
 		{
 			var err error
 			resp, err = conn.client.receivePacket()
 			if err != nil {
-				panic(err)
+				return "", err
 			}
 		}
 		// Do this while the packet received has ID requestId
@@ -116,10 +119,10 @@ func (conn *RCONConnection) SendCommand(cmd string) string {
 			var err error
 			for ; resp.packetId == requestId; resp, err = conn.client.receivePacket() {
 				if err != nil {
-					panic(err)
+					return "", err
 				}
 				if resp.packetType != serverdataResponseValue {
-					panic(errors.New("unexpected response type"))
+					return "", errors.New("unexpected response type")
 				}
 				respBody = respBody + resp.packetBody
 			}
@@ -132,15 +135,15 @@ func (conn *RCONConnection) SendCommand(cmd string) string {
 		// Receive ping and check for expectation
 		resp, err = conn.client.receivePacket()
 		if err != nil {
-			panic(err)
+			return "", err
 		}
 		if (resp != packet{pingId, serverdataResponseValue, "\x00\x01\x00\x00"}) {
 			msg := fmt.Sprintf("received unexpected response (ping); expected %v %v %v, got %v %v %v",
 				pingId, serverdataResponseValue, "", resp.packetId, resp.packetType, resp.packetBody)
-			panic(errors.New(msg))
+			return "", errors.New(msg)
 		}
 	}
-	return respBody
+	return respBody, nil
 }
 
 func (conn *RCONConnection) counter() int {
@@ -149,5 +152,16 @@ func (conn *RCONConnection) counter() int {
 }
 
 func (conn *RCONConnection) Close() {
+	if conn.client == nil {
+		return
+	}
 	conn.client.close()
+}
+
+// AuthenticationFailure is an error type which indicates that an RCONConnection failed to authenticate. It is intended
+// to be caught and handled as a recoverable error.
+type AuthenticationFailure struct{}
+
+func (e AuthenticationFailure) Error() string {
+	return "Failed to make connection: authentication failure"
 }
