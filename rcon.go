@@ -54,7 +54,7 @@ func NewRCONConnection(host string, port int, password string) *RCONConnection {
 			panic(errors.New("received unexpected packet"))
 		}
 		if response.packetId != 0 {
-			_, err := fmt.Fprintln(os.Stderr, "Authentication failure")
+			_, err := fmt.Fprintln(os.Stderr, "Failed to make connection: authentication failure")
 			if err != nil {
 				return nil
 			}

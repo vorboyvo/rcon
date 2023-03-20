@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	conn := NewRCONConnection("example.com", 27015, "examplePassword")
+	conn := NewRCONConnection("tf.orthogonality.com", 27015, "examplePassword")
 	defer conn.close()
 
 	// Scanner for input

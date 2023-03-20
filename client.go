@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
-	"log"
 	"net"
+	"os"
 	"strconv"
 	"time"
 )
@@ -87,10 +88,10 @@ type client struct {
 }
 
 func newClient(host string, port int) (*client, error) {
-	con, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 10*time.Second)
+	con, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 4*time.Second)
 	if err != nil {
-		log.Println("Failed to make connection")
-		log.Fatalln(err)
+		_, _ = fmt.Fprintln(os.Stderr, "Failed to make connection:", err)
+		os.Exit(3)
 	}
 	return &client{
 		&con,
