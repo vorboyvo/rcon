@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -21,6 +20,7 @@ const (
 
 /**
  * RCON TCP Packet
+ * As defined here: https://developer.valvesoftware.com/wiki/Source_RCON_Protocol
  */
 
 type Packet struct {
@@ -42,9 +42,9 @@ func (p Packet) serializePacket() []byte {
 	size := p.size()                        // Avoid repeat calls
 	// Construct data slice
 	bytes := make([]byte, size+4)
-	binary.PutUvarint(bytes[0:4], uint64(size))
-	binary.PutUvarint(bytes[4:8], uint64(p.packetId))
-	binary.PutUvarint(bytes[8:12], uint64(p.packetType))
+	binary.LittleEndian.PutUint32(bytes[0:4], uint32(size))
+	binary.LittleEndian.PutUint32(bytes[4:8], uint32(p.packetId))
+	binary.LittleEndian.PutUint32(bytes[8:12], uint32(p.packetType))
 	copy(bytes[12:], body)
 	return bytes
 }
@@ -64,23 +64,17 @@ func deserializePacket(bytes []byte) (Packet, error) {
 	// Read ID
 	var packetId int
 	{
-		packetId64, num := binary.Uvarint(bytes[0:4])
-		if num > 4 {
-			return Packet{}, errors.New("failed to read id while deserializing data")
-		}
-		packetId = int(packetId64)
+		packetId32 := binary.LittleEndian.Uint32(bytes[0:4])
+		packetId = int(packetId32)
 	}
 	// Read type
 	var packetType int
 	{
-		packetType64, num := binary.Uvarint(bytes[4:8])
-		if num > 4 {
-			return Packet{}, errors.New("failed to read type while deserializing data")
-		}
-		packetType = int(packetType64)
+		packetType32 := binary.LittleEndian.Uint32(bytes[4:8])
+		packetType = int(packetType32)
 	}
 	var packetBody = string(bytes[8 : len(bytes)-2]) // -2 for null terminators on body and whole packet
-	fmt.Printf("Packet type: %v, Packet ID: %v, Packet Body: %v\n", packetType, packetId, packetBody)
+	//fmt.Printf("Packet type: %v, Packet ID: %v, Packet Body: '%v'\n", packetType, packetId, packetBody)
 	return Packet{packetId: packetId, packetType: packetType, packetBody: packetBody}, nil
 }
 
@@ -103,61 +97,61 @@ func newClient(host string, port int) (*client, error) {
 	}, nil
 }
 
-func (c *client) sendAndReceive(p Packet) (Packet, error) {
+func (c *client) sendPacket(p Packet) error {
 	bytes := p.serializePacket()
 	// Check format
 	if bytes[len(bytes)-2] != 0 {
-		return Packet{}, errors.New("request body not a null terminated string")
+		return errors.New("request body not a null terminated string")
 	} else if bytes[len(bytes)-1] != 0 {
-		return Packet{}, errors.New("request not null terminated")
+		return errors.New("request not null terminated")
 	}
 	// Send packet
 	{
 		num, err := (*c.con).Write(bytes)
 		if err != nil {
-			return Packet{}, err
+			return err
 		}
 		if num != len(bytes) {
-			return Packet{}, errors.New("failed to send full packet")
+			return errors.New("failed to send full packet")
 		}
 	}
+	return nil
+}
+
+func (c *client) receivePacket() (Packet, error) {
 	// Read response
 	var response Packet
-	for response.packetType == 0 {
-		// read size
-		var size int
-		{
-			buf := make([]byte, 4)
-			num, err := io.ReadFull(*c.con, buf)
-			if err != nil {
-				return Packet{}, err
-			} else if num < 4 {
-				return Packet{}, errors.New("failed to read size of packet; could not read first word")
-			}
-			fmt.Println(buf[:num])
-			size64, num := binary.Uvarint(buf)
-			if num == 0 {
-				return Packet{}, errors.New("failed to read size of packet; buffer too small")
-			} else if num < 0 {
-				return Packet{}, errors.New("failed to read size of packet; buffer too small")
-			}
-			size = int(size64)
+	// read size
+	var size int
+	{
+		buf := make([]byte, 4)
+		num, err := io.ReadFull(*c.con, buf)
+		if err != nil {
+			return Packet{}, err
+		} else if num < 4 {
+			return Packet{}, errors.New("failed to read size of packet; could not read first word")
 		}
-		// read size number of bytes
-		{
-			var err error
-			buf := make([]byte, size)
-			num, err := io.ReadFull(*c.con, buf)
-			if err != nil {
-				return Packet{}, err
-			} else if num < size {
-				return Packet{}, errors.New("failed to read packet up to full size")
-			}
-			response, err = deserializePacket(buf)
-			if err != nil {
-				return Packet{}, err
-			}
-			fmt.Println(response)
+		size32 := binary.LittleEndian.Uint32(buf)
+		if num == 0 {
+			return Packet{}, errors.New("failed to read size of packet; buffer too small")
+		} else if num < 0 {
+			return Packet{}, errors.New("failed to read size of packet; buffer too small")
+		}
+		size = int(size32)
+	}
+	// read size number of bytes
+	{
+		var err error
+		buf := make([]byte, size)
+		num, err := io.ReadFull(*c.con, buf)
+		if err != nil {
+			return Packet{}, err
+		} else if num < size {
+			return Packet{}, errors.New("failed to read packet up to full size")
+		}
+		response, err = deserializePacket(buf)
+		if err != nil {
+			return Packet{}, err
 		}
 	}
 	return response, nil
