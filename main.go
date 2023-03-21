@@ -1,19 +1,56 @@
+/*
+Copyright 2023 vorboyvo.
+
+This file is part of rcon.
+
+rcon is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+rcon is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with rcon. If not, see
+https://www.gnu.org/licenses.
+*/
+
 package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"github.com/cheynewallace/tabby"
 	flag "github.com/spf13/pflag"
 	"io"
 	"net"
 	"os"
 	"strings"
+	"text/tabwriter"
 )
 
 var debug bool
 
-func main() {
-	os.Exit(mainWithCode())
+func usage() {
+	var usageString string
+	usageString += "Usage:\n"
+	usageString += " rcon [options]\n"
+	usageString += " rcon [options] command\n"
+
+	var optionsString string
+	optionsString += "Options:\n"
+	buf := bytes.Buffer{}
+	writer := tabwriter.NewWriter(&buf, 0, 0, 1, ' ', 0)
+	options := tabby.NewCustom(writer)
+	flag.VisitAll(func(f *flag.Flag) {
+		if f.Hidden {
+			return
+		}
+		options.AddLine("-"+f.Shorthand+",", "--"+f.Name, f.Usage)
+	})
+	options.Print()
+	optionsString += buf.String()
+	_, _ = fmt.Fprintln(os.Stderr, usageString+"\n"+optionsString)
 }
 
 func mainWithCode() int {
@@ -22,9 +59,18 @@ func mainWithCode() int {
 	flagPort := flag.IntP("port", "p", 27015, "Port")
 	flagPassword := flag.StringP("password", "P", "", "RCON Password")
 	flagDebug := flag.BoolP("debug", "d", false, "Additional output for debug purposes")
+	flagHelp := flag.BoolP("help", "h", false, "Show this help text")
+	flag.CommandLine.SortFlags = false
+	flag.CommandLine.Usage = usage
 	flag.Parse()
 	args := flag.Args()
 	debug = *flagDebug
+
+	// Show help text if requested, then exit
+	if *flagHelp {
+		usage()
+		return -9
+	}
 
 	// Check for legal arguments
 	{
@@ -42,6 +88,8 @@ func mainWithCode() int {
 			illegalArguments = true
 		}
 		if illegalArguments {
+			fmt.Println()
+			usage()
 			return -1
 		}
 	}
@@ -104,4 +152,8 @@ func mainWithCode() int {
 		return 5
 	}
 	return 0
+}
+
+func main() {
+	os.Exit(mainWithCode())
 }
