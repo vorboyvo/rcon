@@ -31,16 +31,19 @@ import (
 
 var debug bool
 
+// usage prints a string detailing the command-line syntax and options to standard output.
+// It does not give a more detailed description; this can be found, for now, in the readme.
 func usage() {
-	var usageString string
-	usageString += "Usage:\n"
-	usageString += " rcon [options]\n"
-	usageString += " rcon [options] command\n"
+	var syntaxString string
+	syntaxString += "Usage:\n"
+	syntaxString += " rcon [options]\n"
+	syntaxString += " rcon [options] command\n"
 
 	var optionsString string
 	optionsString += "Options:\n"
 	buf := bytes.Buffer{}
-	writer := tabwriter.NewWriter(&buf, 0, 0, 1, ' ', 0)
+	// Write options table to string
+	writer := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
 	options := tabby.NewCustom(writer)
 	flag.VisitAll(func(f *flag.Flag) {
 		if f.Hidden {
@@ -50,7 +53,7 @@ func usage() {
 	})
 	options.Print()
 	optionsString += buf.String()
-	_, _ = fmt.Fprintln(os.Stderr, usageString+"\n"+optionsString)
+	_, _ = fmt.Fprintln(os.Stderr, syntaxString+"\n"+optionsString)
 }
 
 func mainWithCode() int {
@@ -60,6 +63,7 @@ func mainWithCode() int {
 	flagPassword := flag.StringP("password", "P", "", "RCON Password")
 	flagDebug := flag.BoolP("debug", "d", false, "Additional output for debug purposes")
 	flagHelp := flag.BoolP("help", "h", false, "Show this help text")
+	flagServer := flag.StringP("server", "s", "", "Server from config file to select")
 	flag.CommandLine.SortFlags = false
 	flag.CommandLine.Usage = usage
 	flag.Parse()
@@ -72,9 +76,27 @@ func mainWithCode() int {
 		return -9
 	}
 
+	// Read config file
+	config, err := readConfig()
+	if err != nil {
+		panic(err)
+	}
+	if *flagServer != "" {
+		selectedServer := config[*flagServer]
+		if (selectedServer == server{}) {
+			// No server with this name was found in config file
+			_, err := fmt.Fprintln(os.Stderr, "Server", *flagServer, "was not found in configuration file")
+			if err != nil {
+				panic(err)
+			}
+			return -5
+		}
+	}
+
 	// Check for legal arguments
 	{
 		var illegalArguments bool
+
 		if *flagHost == "" {
 			_, _ = fmt.Fprintln(os.Stderr, "Hostname not provided")
 			illegalArguments = true
@@ -98,13 +120,13 @@ func mainWithCode() int {
 	conn, err := NewRCONConnection(*flagHost, *flagPort, *flagPassword)
 	if err != nil {
 		if connFailure, ok := err.(ConnectionFailure); ok {
-			_, err := fmt.Fprintln(os.Stderr, connFailure.Error())
+			_, err := fmt.Fprintln(os.Stderr, connFailure)
 			if err != nil {
 				panic(err)
 			}
 			return 2
 		} else if authFailure, ok := err.(AuthenticationFailure); ok {
-			_, err := fmt.Fprintln(os.Stderr, authFailure.Error())
+			_, err := fmt.Fprintln(os.Stderr, authFailure)
 			if err != nil {
 				panic(err)
 			}
