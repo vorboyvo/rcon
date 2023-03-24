@@ -22,9 +22,9 @@ const defaultFileContent = `# RCON Config
 type configMap map[string]server
 
 type server struct {
-	host     string `toml:"hostname"` // referred to as hostname in config file for backwards compatibility
-	port     int    `toml:"port"`
-	password string `toml:"password"`
+	Host     string `toml:"hostname"` // referred to as hostname in config file for backwards compatibility
+	Port     int    `toml:"port"`
+	Password string `toml:"password"`
 }
 
 func readConfig() (configMap, error) {

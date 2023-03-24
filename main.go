@@ -91,6 +91,14 @@ func mainWithCode() int {
 			}
 			return -5
 		}
+		// Set the values
+		*flagHost = selectedServer.Host
+		if selectedServer.Port != 0 {
+			*flagPort = selectedServer.Port
+		} else {
+			*flagPort = 27015
+		}
+		*flagPassword = selectedServer.Password
 	}
 
 	// Check for legal arguments
