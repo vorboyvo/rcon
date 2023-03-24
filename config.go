@@ -23,8 +23,8 @@ type configMap map[string]server
 
 type server struct {
 	host     string `toml:"hostname"` // referred to as hostname in config file for backwards compatibility
-	port     int
-	password string
+	port     int    `toml:"port"`
+	password string `toml:"password"`
 }
 
 func readConfig() (configMap, error) {
