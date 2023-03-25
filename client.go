@@ -71,7 +71,8 @@ func (p packet) serializePacket() []byte {
 	return bytes
 }
 
-// deserializePacket converts a raw packet as a byte slice to a packet struct
+// deserializePacket converts a raw packet as a byte slice to a packet struct. The bytes should NOT include any size
+// information, which should be received separately by implementation
 func deserializePacket(bytes []byte) (packet, error) {
 	// Handle data too short
 	if len(bytes) < 10 {
