@@ -44,7 +44,7 @@ To uninstall, select "rcon" in the Apps and Features sections of Settings, and u
 
 ### Mac
 
-See build instructions; no package for macOS.
+See build instructions; there is no package for macOS.
 
 ### Linux
 
@@ -59,9 +59,11 @@ To uninstall, run with root permissions:
 
 You can use `rcon -h` or `rcon --help` to get a usage message.
 
-There are two ways to use rcon: to issue a single command, or to take commands interactively.
+There are two ways to use rcon: to issue a single command, or to take commands interactively (take over the shell window).
 
 To issue a single command, run `rcon [options] [your command here]`. To take commands interactively, run `rcon [options]`, and then issue commands into the terminal. In any event, options must include either a hostname and an RCON password and, if different from the default 27015, port, or a server from the configuration file.
+
+To exit out of interactive mode, send an end-of-file signal to the terminal. This can be done on Linux or Mac by pressing Ctrl+D, or on Windows by pressing Ctrl+Z then Enter.
 
 ## Configuration file
 
