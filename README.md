@@ -42,6 +42,10 @@ Download and run the installer `rcon_install.exe`.
 
 To uninstall, select "rcon" in the Apps and Features sections of Settings, and uninstall using the given installer.
 
+### Mac
+
+See build instructions; no package for macOS.
+
 ### Linux
 
 Download and extract the .tar.gz archive `rcon.tar.gz`. In the extracted directory, run with root permissions:
@@ -53,7 +57,46 @@ To uninstall, run with root permissions:
 
 # Usage
 
-To be finished. Currently, you can use `rcon -h` or `rcon --help` to get a usage message.
+You can use `rcon -h` or `rcon --help` to get a usage message.
+
+There are two ways to use rcon: to issue a single command, or to take commands interactively.
+
+To issue a single command, run `rcon [options] [your command here]`. To take commands interactively, run `rcon [options]`, and then issue commands into the terminal. In any event, options must include either a hostname and an RCON password and, if different from the default 27015, port, or a server from the configuration file.
+
+## Configuration file
+
+The configuration file is located in the "rcon" subdirectory in the user config directory; by default:
+* on Windows: C:\Users\YourUsernameHere\AppData\Roaming\rcon\config.toml
+* on macOS: ~/Library/Application Support/rcon/config.toml
+* on Linux: ~/.config/rcon/config.toml
+
+In it, you can store a list of servers, such as ones you use frequently, for easy use, using a TOML-based format as follows:
+
+```
+[someservername1]
+hostname = "172.0.0.1"
+port = 27015
+password = "somepassword"
+
+[someservername2]
+hostname = "172.0.0.2"
+port = 27035
+password = "differentpassword"
+```
+
+Then, you can call rcon as follows:
+
+```rcon -s someservername1```
+
+## Examples
+
+```$ rcon -H example.com -p 27035 -P myPassword status```
+
+```$ rcon -s exampleServer sv_password hello```
+
+## Security
+
+Note that the RCON protocol sends passwords in unsecured plain text over the internet; this is universal to RCON, not specific to this program. If this is a concern to you, you should consider running this program through an SSH tunnel.
 
 # License
 

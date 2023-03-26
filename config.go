@@ -18,20 +18,21 @@ package main
 
 import (
 	"errors"
-	"github.com/BurntSushi/toml"
 	"os"
 	"path"
+
+	"github.com/BurntSushi/toml"
 )
 
 const configSubdirName = "rcon"
 const configFileName = "config.toml"
 
 const defaultFileContent = `# RCON Config
-# You can add servers, removing the # indicating comments, as below
+# You can add servers, removing the # indicating comments, as below. Wrap the hostname and password between double quotes.
 # [someservername]
-# hostname = 172.0.0.1
+# hostname = "172.0.0.1"
 # port = 27015
-# password = somepassword
+# password = "somepassword"
 
 `
 
