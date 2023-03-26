@@ -17,7 +17,39 @@ It is currently in alpha. Functionality has not been fully tested; expect bugs a
 
 # Installation
 
-To be finished
+## Build
+
+Prerequisites:
+* git
+* go 1.19
+  * github.com/BurntSushi/toml v1.2.1
+  * github.com/cheynewallace/tabby v1.1.1
+  * github.com/spf13/pflag v1.0.5
+
+Clone the code into a local directory:
+
+```$ git clone https://github.com/vibeisveryo/rcon.git```
+
+```$ go build```
+
+Copy the output file (`rcon.exe` on Windows, `rcon` on Mac/Linux) to your path.
+
+## Release
+
+### Windows
+
+Download and run the installer `rcon_install.exe`.
+
+To uninstall, select "rcon" in the Apps and Features sections of Settings, and uninstall using the given installer.
+
+### Linux
+
+Download and extract the .tar.gz archive `rcon.tar.gz`. In the extracted directory, run with root permissions:
+
+```# ./rcon_install.sh```
+
+To uninstall, run with root permissions:
+```# rm /usr/bin/rcon```
 
 # Usage
 

@@ -1,3 +1,19 @@
+/*
+Copyright 2023 vorboyvo.
+
+This file is part of rcon.
+
+rcon is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+rcon is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with rcon. If not, see
+https://www.gnu.org/licenses.
+*/
+
 package main
 
 import (
@@ -76,9 +92,12 @@ func TestSendPacket(t *testing.T) {
 		go func(testCase struct {
 			in   packet
 			want []byte
-		}) { err := client.sendPacket(testCase.in); if err != nil {
-			t.Errorf("Encountered error while sending packet %v: %v", testCase.in, err)
-		} }(c)
+		}) {
+			err := client.sendPacket(testCase.in)
+			if err != nil {
+				t.Errorf("Encountered error while sending packet %v: %v", testCase.in, err)
+			}
+		}(c)
 		buf := make([]byte, len(c.want))
 		read, err := serverCon.Read(buf)
 		if read != len(c.want) {
@@ -108,11 +127,15 @@ func TestReceivePacket(t *testing.T) {
 		go func(testCase struct {
 			in   []byte
 			want packet
-		}) { receivePacket, err := client.receivePacket(); if err != nil {
-			t.Errorf("Encountered error while receiving packet %v: %v", testCase.in, err)
-		}; if receivePacket != testCase.want {
-			t.Errorf("Receive packet, expected bytes %v, got %v", testCase.want, receivePacket)
-		} }(c)
+		}) {
+			receivePacket, err := client.receivePacket()
+			if err != nil {
+				t.Errorf("Encountered error while receiving packet %v: %v", testCase.in, err)
+			}
+			if receivePacket != testCase.want {
+				t.Errorf("Receive packet, expected bytes %v, got %v", testCase.want, receivePacket)
+			}
+		}(c)
 		write, err := serverCon.Write(c.in)
 		if err != nil {
 			t.Errorf("Encountered error while sending packet %v: %v", c.in, err)
