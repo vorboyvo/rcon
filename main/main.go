@@ -22,14 +22,13 @@ import (
 	"fmt"
 	"github.com/cheynewallace/tabby"
 	flag "github.com/spf13/pflag"
+	"github.com/vibeisveryo/rcon"
 	"io"
 	"net"
 	"os"
 	"strings"
 	"text/tabwriter"
 )
-
-var debug bool
 
 // usage prints a string detailing the command-line syntax and options to standard output.
 // It does not give a more detailed description; this can be found, for now, in the readme.
@@ -68,7 +67,7 @@ func mainWithCode() int {
 	flag.CommandLine.Usage = usage
 	flag.Parse()
 	args := flag.Args()
-	debug = *flagDebug
+	rcon.Debug = *flagDebug
 
 	// Show help text if requested, then exit
 	if *flagHelp {
@@ -125,15 +124,15 @@ func mainWithCode() int {
 	}
 
 	// Create connection, handle failure, defer closure
-	conn, err := NewRCONConnection(*flagHost, *flagPort, *flagPassword)
+	conn, err := rcon.NewRCONConnection(*flagHost, *flagPort, *flagPassword)
 	if err != nil {
-		if connFailure, ok := err.(ConnectionFailure); ok {
+		if connFailure, ok := err.(rcon.ConnectionFailure); ok {
 			_, err := fmt.Fprintln(os.Stderr, connFailure)
 			if err != nil {
 				panic(err)
 			}
 			return 2
-		} else if authFailure, ok := err.(AuthenticationFailure); ok {
+		} else if authFailure, ok := err.(rcon.AuthenticationFailure); ok {
 			_, err := fmt.Fprintln(os.Stderr, authFailure)
 			if err != nil {
 				panic(err)

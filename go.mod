@@ -1,4 +1,4 @@
-module rcon
+module github.com/vibeisveryo/rcon
 
 go 1.19
 

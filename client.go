@@ -14,7 +14,7 @@ You should have received a copy of the GNU General Public License along with rco
 https://www.gnu.org/licenses.
 */
 
-package main
+package rcon
 
 import (
 	"encoding/binary"
@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"time"
 )
+
+var Debug = false
 
 //goland:noinspection SpellCheckingInspection
 const (
@@ -64,7 +66,7 @@ func (p packet) serializePacket() []byte {
 	binary.LittleEndian.PutUint32(bytes[4:8], uint32(p.packetId))
 	binary.LittleEndian.PutUint32(bytes[8:12], uint32(p.packetType))
 	copy(bytes[12:], body)
-	if debug {
+	if Debug {
 		_, _ = fmt.Fprintf(os.Stderr, "serialize packet with type %v id %v and body '%v'\n",
 			p.packetType, p.packetId, p.packetBody)
 	}
@@ -99,7 +101,7 @@ func deserializePacket(bytes []byte) (packet, error) {
 	}
 	var packetBody = string(bytes[8 : len(bytes)-2]) // -2 for null terminators on body and whole packet
 	//fmt.Printf("Packet type: %v, Packet ID: %v, Packet Body: '%v'\n", packetType, packetId, packetBody)
-	if debug {
+	if Debug {
 		_, _ = fmt.Fprintf(os.Stderr, "deserialize packet with type %v id %v and body '%v'\n",
 			packetType, packetId, packetBody)
 	}
@@ -115,7 +117,7 @@ type client struct {
 // defer execution of close() on the returned client.
 func newClient(host string, port int) (*client, error) {
 	con, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 4*time.Second)
-	if debug {
+	if Debug {
 		_, _ = fmt.Fprintln(os.Stderr, "open connection with error", err)
 	}
 	if err != nil {
@@ -142,7 +144,7 @@ func (c *client) sendPacket(p packet) error {
 	}
 	// Send packet
 	{
-		if debug {
+		if Debug {
 			_, err := fmt.Fprintln(os.Stderr, "send", bytes)
 			if err != nil {
 				return err
@@ -169,7 +171,7 @@ func (c *client) receivePacket() (packet, error) {
 	{
 		buf := make([]byte, 4)
 		num, err := io.ReadFull(*c.con, buf)
-		if debug {
+		if Debug {
 			_, _ = fmt.Fprintln(os.Stderr, "receive raw size", buf, "with error", err)
 		}
 		if err != nil {
@@ -190,7 +192,7 @@ func (c *client) receivePacket() (packet, error) {
 		var err error
 		buf := make([]byte, size)
 		num, err := io.ReadFull(*c.con, buf)
-		if debug {
+		if Debug {
 			_, _ = fmt.Fprintln(os.Stderr, "receive raw payload", buf, "with error", err)
 		}
 		if err != nil {
@@ -208,7 +210,7 @@ func (c *client) receivePacket() (packet, error) {
 
 // close closes the connection; it is intended to be deferred on newClient call.
 func (c *client) close() {
-	if debug {
+	if Debug {
 		_, _ = fmt.Fprintln(os.Stderr, "close connection")
 	}
 	if c.con == nil {

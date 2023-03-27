@@ -18,10 +18,9 @@ package main
 
 import (
 	"errors"
+	"github.com/BurntSushi/toml"
 	"os"
 	"path"
-
-	"github.com/BurntSushi/toml"
 )
 
 const configSubdirName = "rcon"
