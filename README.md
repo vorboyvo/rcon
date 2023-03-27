@@ -2,7 +2,7 @@ rcon is a command-line application that allows you to issue commands remotely
 to servers running Team Fortress 2, Counter-Strike: Global Offensive, ~~Minecraft~~,
 and other games which support the [Source RCON Protocol](https://developer.valvesoftware.com/wiki/Source_RCON_Protocol).
 
-It is currently in alpha. Functionality has not been fully tested; expect bugs and instability.
+It is currently in beta. Functionality has not been fully tested; expect bugs and instability, but nothing too breaking.
 
 # Features
 
