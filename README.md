@@ -12,6 +12,7 @@ It is currently in beta. Functionality has not been fully tested; expect bugs an
 
 ## Planned Features
 
+* Validate for strings being ASCII
 * Dynamic window title/server/connection status
 * Localization
 * For certain games (especially Team Fortress 2), cache server information and allow for tab-completion
